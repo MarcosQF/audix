@@ -1,0 +1,24 @@
+[project]
+name = "audix"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Marcos Queiroz",email = "marcosamfq123@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.14,<4.0"
+dependencies = [
+    "fastapi[standard] (>=0.138.0,<0.139.0)",
+    "sqlalchemy (>=2.0.51,<3.0.0)",
+    "alembic (>=1.18.4,<2.0.0)",
+    "pydantic-settings (>=2.14.2,<3.0.0)",
+    "asyncpg (>=0.31.0,<0.32.0)",
+    "pyjwt (>=2.13.0,<3.0.0)",
+    "psycopg2-binary (>=2.9.12,<3.0.0)",
+    "pwdlib[argon2] (>=0.3.0,<0.4.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
