@@ -1,3 +1,5 @@
+from aiobotocore.session import get_session
+from botocore.exceptions import ClientError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,3 +24,22 @@ async def create_initial_admin(session: AsyncSession):
 
         session.add(db_user)
         await session.commit()
+
+
+async def create_podcast_bucket():
+    config = {
+        "endpoint_url": "http://minio:9000",
+        "aws_access_key_id": "minioadmin",
+        "aws_secret_access_key": "minioadmin",
+    }
+    
+    session = get_session()
+    async with session.create_client("s3", **config) as s3:
+        try:
+            await s3.create_bucket(Bucket="podcasts") #type: ignore
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code")
+            if error_code in ["BucketAlreadyOwnedByYou", "BucketAlreadyExists"]:
+                print("Bucket 'podcasts' já existe.")
+            else:
+                raise e

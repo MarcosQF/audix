@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from audix.database import get_session
-from audix.setup import create_initial_admin
+from audix.setup import create_initial_admin, create_podcast_bucket
 from audix.shared.errors import ApiException
 
 from .main_router import router
@@ -15,6 +15,7 @@ from .main_router import router
 async def lifespan(app: FastAPI):
     async for session in get_session():
         await create_initial_admin(session)
+        await create_podcast_bucket()
         break
     yield
 
