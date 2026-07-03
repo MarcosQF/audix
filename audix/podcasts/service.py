@@ -68,7 +68,7 @@ class PodcastService:
 
         extensao = Path(file.filename or "").suffix
         
-        object_name = f"podcasts/{podcast_id}/images/{uuid.uuid4()}{extensao}"
+        object_name = f"{db_podcast.name}/images/{uuid.uuid4()}{extensao}"
 
         await self.minio_service.upload_file(
             file=file,

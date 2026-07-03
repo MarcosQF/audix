@@ -100,6 +100,7 @@ async def delete_podcast(
 @router.post(
     "/{podcast_id}/image",
     status_code=HTTPStatus.OK,
+    response_model=PodcastResponse,
     summary="Faz o upload da imagem de capa de um podcast existente",
 )
 async def upload_podcast_image(
