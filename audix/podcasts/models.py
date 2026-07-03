@@ -8,6 +8,7 @@ from ..shared.mixins.timestamp import TimestampMixin
 from .enums import PodcastCategory
 
 if TYPE_CHECKING:
+    from audix.episodes.models import Episode
     from audix.users.models import User
 
 class Podcast(Base, TimestampMixin):
@@ -33,5 +34,13 @@ class Podcast(Base, TimestampMixin):
     image_url: Mapped[str | None] = mapped_column(
         String(500), nullable=True, default=None
     )
+
+    episodes: Mapped[list["Episode"]] = relationship(
+        "Episode", 
+        back_populates="podcast", 
+        cascade="all, delete-orphan",
+        init=False
+    )
+
 
 

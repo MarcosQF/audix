@@ -25,7 +25,8 @@ class User(Base, TimestampMixin):
 
     podcasts: Mapped[list["Podcast"]] = relationship(
         "Podcast",
-        back_populates="author"
+        back_populates="author",
+        init=False
     )
 
     role: Mapped[UserRoles] = mapped_column(default=UserRoles.USER)

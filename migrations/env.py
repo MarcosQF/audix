@@ -6,6 +6,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from audix.database import Base
+from audix.episodes.models import Episode
 from audix.podcasts.models import Podcast
 from audix.settings import settings
 from audix.users.models import User

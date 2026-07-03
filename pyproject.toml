@@ -16,7 +16,8 @@ dependencies = [
     "pyjwt (>=2.13.0,<3.0.0)",
     "psycopg2-binary (>=2.9.12,<3.0.0)",
     "pwdlib[argon2] (>=0.3.0,<0.4.0)",
-    "aiobotocore (>=3.7.0,<4.0.0)"
+    "aiobotocore (>=3.7.0,<4.0.0)",
+    "mutagen (>=1.48.1,<2.0.0)"
 ]
 
 
