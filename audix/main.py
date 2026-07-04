@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from audix.database import get_session
-from audix.setup import create_initial_admin, create_podcast_bucket
+from audix.lifespan import create_initial_admin, create_podcast_bucket
 from audix.shared.errors import ApiException
 
 from .main_router import router
