@@ -4,19 +4,23 @@ from typing import Annotated
 
 from fastapi import Depends, UploadFile
 from mutagen import File as MutagenFile
-from sqlalchemy import select
+from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from audix.database import SessionDep
 from audix.podcasts.models import Podcast
 from audix.podcasts.service import PodcastService, PodcastServiceDep
-from audix.shared.errors import ForbbiddenException, NotFoundException
+from audix.shared.errors import (
+    ForbbiddenException,
+    NotFoundException,
+    UnauthorizedException,
+)
 from audix.shared.minio.service import MinioService, MinioServiceDep
 from audix.users.enums import UserRoles
 from audix.users.models import User
 
-from .models import Episode
+from .models import Episode, episode_likes_association
 from .schemas import EpisodeCreate
 
 
@@ -60,7 +64,11 @@ class EpisodeService:
 
         return new_episode
 
-    async def get_by_id(self, episode_id: int) -> Episode:
+    async def get_by_id(
+        self,
+        episode_id: int,
+        current_user: User | None = None,
+    ) -> Episode:
         query = (
             select(Episode)
             .options(joinedload(Episode.podcast).joinedload(Podcast.author))
@@ -70,6 +78,23 @@ class EpisodeService:
 
         if not episode_db:
             raise NotFoundException(item="Episódio", item_id=episode_id)
+
+        if not current_user:
+            raise UnauthorizedException(detail='Faça o login')
+
+        query_like = select(episode_likes_association).where(
+            episode_likes_association.c.user_id == current_user.id,
+            episode_likes_association.c.episode_id == episode_id
+        )
+        like_exists = await self.session.scalar(query_like)
+        
+        episode_db.audio_url = await self.minio_service.get_file_url(
+            episode_db.audio_url
+        )
+        episode_db.image_url = await self.minio_service.get_file_url(
+            episode_db.image_url
+        )
+        episode_db.is_liked = True if like_exists else False
 
         return episode_db
 
@@ -110,7 +135,9 @@ class EpisodeService:
         episode_id: int,
         user: User,
     ) -> Episode:
-        db_episode = await self.get_by_id(episode_id=episode_id)
+        db_episode = await self.get_by_id(
+            episode_id=episode_id, current_user=user
+        )
 
         if (
             db_episode.podcast.author_id != user.id
@@ -146,7 +173,9 @@ class EpisodeService:
         file: UploadFile,
         current_user: User,
     ) -> Episode:
-        episode = await self.get_by_id(episode_id)
+        episode = await self.get_by_id(
+            episode_id=episode_id, current_user=current_user
+        )
 
         if (
             episode.podcast.author_id != current_user.id
@@ -191,8 +220,60 @@ class EpisodeService:
 
         return episode
 
+    async def toggle_like(self, current_user: User, episode_id: int):
+        db_episode = await self.get_by_id(
+            episode_id=episode_id, current_user=current_user
+        )
+
+        query_check_like = (
+            select(episode_likes_association)
+            .where(
+                episode_likes_association.c.user_id == current_user.id,
+                episode_likes_association.c.episode_id == episode_id
+            )
+        )
+
+        like_exists = await self.session.scalar(query_check_like)
+
+        if like_exists:
+            statement_delete = (
+                delete(episode_likes_association)
+                .where(
+                    episode_likes_association.c.user_id == current_user.id,
+                    episode_likes_association.c.episode_id == episode_id
+                )
+            )
+            await self.session.execute(statement_delete)
+            
+            db_episode.likes_count = max(0, db_episode.likes_count - 1)
+            action = "unliked"
+            
+        else:
+            statement_insert = (
+                insert(episode_likes_association)
+                .values(
+                    user_id=current_user.id,
+                    episode_id=episode_id
+                )
+            )
+            await self.session.execute(statement_insert)
+            
+            db_episode.likes_count += 1
+            action = "liked"
+
+        self.session.add(db_episode)
+        await self.session.commit()
+        await self.session.refresh(db_episode)
+
+        return {
+            "action": action,
+            "likes_count": db_episode.likes_count
+        }
+
     async def delete(self, episode_id: int, current_user: User) -> None:
-        episode = await self.get_by_id(episode_id=episode_id)
+        episode = await self.get_by_id(
+            episode_id=episode_id, current_user=current_user
+        )
 
         if (
             episode.podcast.author_id != current_user.id

@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import Column, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from audix.database import Base
@@ -9,6 +9,22 @@ from ..shared.mixins.timestamp import TimestampMixin
 
 if TYPE_CHECKING:
     from audix.podcasts.models import Podcast
+    from audix.users.models import User
+
+episode_likes_association = Table(
+    "episode_likes",
+    Base.metadata,
+    Column("user_id", ForeignKey(
+        "users.id",
+        ondelete="CASCADE"
+    ), primary_key=True),
+    Column(
+        "episode_id",
+        ForeignKey("episodes.id", ondelete="CASCADE"),
+        primary_key=True
+    ),
+)
+
 
 class Episode(Base, TimestampMixin):
     __tablename__ = "episodes"
@@ -43,3 +59,26 @@ class Episode(Base, TimestampMixin):
         back_populates="episodes",
         init=False
     )
+
+    views_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0"
+    )
+    likes_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0"
+    )
+
+    liked_by_users: Mapped[list["User"]] = relationship(
+        "User",
+        secondary=episode_likes_association,
+        lazy="raise_on_sql",
+        init=False
+    )
+
+    @property
+    def is_liked(self) -> bool | None:
+        return getattr(self, "_is_liked", None)
+
+    @is_liked.setter
+    def is_liked(self, value: bool):
+        self._is_liked = value
+

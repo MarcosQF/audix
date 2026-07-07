@@ -12,6 +12,9 @@ class EpisodeResponse(BaseModel):
     audio_url: str | None = None
     image_url: str | None = None
     duration: int | None = None
+    views_count: int
+    likes_count: int
+    is_liked: bool | None = None
     podcast: PodcastResponse
 
 class EpisodeCreate(BaseModel):
