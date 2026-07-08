@@ -4,7 +4,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from audix.shared.permissions import RequireUser
 
-from .schemas import EpisodeCreate, EpisodeResponse, ListEpisodes
+from .schemas import EpisodeAnalyticsResponse, EpisodeCreate, EpisodeProgressResponse, EpisodeProgressUpdate, EpisodeResponse, ListEpisodes
 from .service import EpisodeServiceDep
 
 router = APIRouter(tags=["Episodes"])
@@ -135,3 +135,43 @@ async def toggle_episode_like(
         episode_id=episode_id, current_user=current_user
     )
     return result
+
+
+@router.post(
+    "/{episode_id}/listening-progress", 
+    status_code=HTTPStatus.OK,
+    summary="Atualiza o progresso de áudio ouvido pelo usuário e computa a visualização"
+)
+async def update_listening_progress(
+    episode_id: int,
+    data: EpisodeProgressUpdate,
+    service: EpisodeServiceDep,
+    current_user: RequireUser,
+):
+    await service.update_progress(
+        episode_id=episode_id,
+        user=current_user,
+        current_time_seconds=data.current_time_seconds
+    )
+    
+    return {"status": "progress_updated"}
+
+@router.get(
+    "/{episode_id}/listening-progress",
+    response_model=EpisodeProgressResponse,
+    summary="Busca o progresso atual de reprodução do usuário para um episódio específico",
+)
+async def get_listening_progress(
+    episode_id: int,
+    service: EpisodeServiceDep,
+    current_user: RequireUser,
+):
+    return await service.get_progress(episode_id=episode_id, user=current_user)
+
+@router.get("/episodes/{episode_id}/analytics", response_model=EpisodeAnalyticsResponse)
+async def get_episode_analytics(
+    episode_id: int,
+    service: EpisodeServiceDep,
+    current_user: RequireUser,
+):
+    return await service.get_episode_metrics(episode_id=episode_id, current_user=current_user)

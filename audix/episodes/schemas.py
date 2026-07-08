@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from audix.podcasts.schemas import PodcastResponse
 from audix.shared.types import StrippedString
@@ -27,3 +27,24 @@ class ListEpisodes(BaseModel):
     episodes: list[EpisodeResponse]
 
 
+class EpisodeProgressUpdate(BaseModel):
+    current_time_seconds: int = Field(
+        ...,
+        ge=0,
+        description="O segundo exato em que o player de áudio do front-end se encontra atualmente.",
+    )
+
+
+class EpisodeProgressResponse(BaseModel):
+    episode_id: int
+    current_time_seconds: int
+    view_counted: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+class EpisodeAnalyticsResponse(BaseModel):
+    episode_id: int
+    total_views: int
+    total_likes: int
+    average_time_listened_seconds: float
+    completion_rate_percentage: float

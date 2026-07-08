@@ -4,7 +4,8 @@ from typing import Annotated
 
 from fastapi import Depends, UploadFile
 from mutagen import File as MutagenFile
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, func, insert, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -20,8 +21,8 @@ from audix.shared.minio.service import MinioService, MinioServiceDep
 from audix.users.enums import UserRoles
 from audix.users.models import User
 
-from .models import Episode, episode_likes_association
-from .schemas import EpisodeCreate
+from .models import Episode, EpisodeProgress, episode_likes_association
+from .schemas import EpisodeCreate, EpisodeProgressResponse
 
 
 class EpisodeService:
@@ -301,6 +302,102 @@ class EpisodeService:
 
         await self.session.delete(episode)
         await self.session.commit()
+
+    async def update_progress(
+            self, episode_id: int, user: User, current_time_seconds: int
+    ) -> None:
+        episode = await self.get_by_id(episode_id=episode_id, current_user=user)
+
+        stmt = pg_insert(EpisodeProgress).values(
+            user_id=user.id,
+            episode_id=episode_id,
+            current_time_seconds=current_time_seconds,
+            view_counted=False
+        )
+        
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_user_episode_progress",
+            set_={"current_time_seconds": current_time_seconds}
+        )
+
+        await self.session.execute(stmt)
+
+        query_check = select(EpisodeProgress).where(
+            EpisodeProgress.user_id == user.id,
+            EpisodeProgress.episode_id == episode_id
+        )
+
+        progress = await self.session.scalar(query_check)
+
+        if (
+            progress
+            and not progress.view_counted
+            and current_time_seconds > (episode.duration * 0.1)
+        ):
+            progress.view_counted = True
+            
+            episode.views_count += 1
+            
+            self.session.add(progress)
+            self.session.add(episode)
+            
+        await self.session.commit()
+
+    async def get_progress(
+        self, episode_id: int, user: User
+    ) -> EpisodeProgressResponse:
+        await self.get_by_id(episode_id=episode_id, current_user=user)
+
+        query = select(EpisodeProgress).where(
+            EpisodeProgress.user_id == user.id,
+            EpisodeProgress.episode_id == episode_id
+        )
+        progress = await self.session.scalar(query)
+
+        if not progress:
+            return EpisodeProgressResponse(
+                episode_id=episode_id,
+                current_time_seconds=0,
+                view_counted=False
+            )
+
+        return EpisodeProgressResponse.model_validate(progress)
+
+    async def get_episode_metrics(
+        self, episode_id: int, current_user: User
+    ) -> dict:
+        episode = await self.get_by_id(
+            episode_id=episode_id, current_user=current_user
+        )
+        if (
+            episode.podcast.author_id != current_user.id
+            and current_user.role != UserRoles.ADMIN
+        ):
+            raise ForbbiddenException(detail="Você não é o dono deste podcast.")
+
+        query_avg = (
+            select(
+                func.avg(EpisodeProgress.current_time_seconds).label("avg_time"),
+                func.count(EpisodeProgress.id).label("total_listeners")
+            )
+            .where(EpisodeProgress.episode_id == episode_id)
+        )
+        stats = await self.session.execute(query_avg)
+        row = stats.first()
+        
+        avg_seconds = float(row.avg_time or 0) if row else 0.0
+        
+        completion_rate = 0.0
+        if episode.duration and episode.duration > 0:
+            completion_rate = (avg_seconds / episode.duration) * 100
+
+        return {
+            "episode_id": episode.id,
+            "total_views": episode.views_count,
+            "total_likes": episode.likes_count,
+            "average_time_listened_seconds": round(avg_seconds, 2),
+            "completion_rate_percentage": round(completion_rate, 2)
+        }
 
 async def get_episode_service(
     session: SessionDep,

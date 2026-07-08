@@ -1,6 +1,15 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from audix.database import Base
@@ -37,7 +46,7 @@ class Episode(Base, TimestampMixin):
     episode_number: Mapped[int] = mapped_column(Integer, nullable=False)
     
     audio_url: Mapped[str | None] = mapped_column(
-        String(500),
+        String(1000),
         nullable=True,
         default=None,
         init=False
@@ -48,7 +57,7 @@ class Episode(Base, TimestampMixin):
     )
 
     image_url: Mapped[str | None] = mapped_column(
-        String(500), nullable=True, default=None
+        String(1000), nullable=True, default=None
     )
 
     duration: Mapped[int] = mapped_column(Integer, nullable=True, init=False)
@@ -82,3 +91,25 @@ class Episode(Base, TimestampMixin):
     def is_liked(self, value: bool):
         self._is_liked = value
 
+
+class EpisodeProgress(Base, TimestampMixin):
+    __tablename__ = "episode_progress"
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE")
+    )
+    episode_id: Mapped[int] = mapped_column(
+        ForeignKey("episodes.id", ondelete="CASCADE")
+    )
+    
+    current_time_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    
+    view_counted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "episode_id", name="uq_user_episode_progress"
+        ),
+    )
