@@ -8,8 +8,9 @@ from .client import MinioClient
 
 
 class MinioService:
-    def __init__(self, client: MinioClient):
+    def __init__(self, client: MinioClient, public_client: MinioClient | None = None):
         self.client = client
+        self.public_client = public_client or client
 
     async def upload_file(self, file: UploadFile, object_name: str):
         async with self.client.get_client() as s3:
@@ -25,10 +26,10 @@ class MinioService:
         if not object_name:
             return None
 
-        async with self.client.get_client() as s3:
+        async with self.public_client.get_client() as s3:
             url = await s3.generate_presigned_url(  # type: ignore
                 "get_object",
-                Params={"Bucket": self.client.bucket_name, "Key": object_name},
+                Params={"Bucket": self.public_client.bucket_name, "Key": object_name},
                 ExpiresIn=3600,
             )
             return url
@@ -48,8 +49,14 @@ def get_minio_service():
         secret_key=settings.MINIO_SECRET_KEY,
         bucket_name="podcasts",
     )
+    public_client = MinioClient(
+        endpoint=settings.MINIO_PUBLIC_ENDPOINT,
+        access_key=settings.MINIO_ACCESS_KEY,
+        secret_key=settings.MINIO_SECRET_KEY,
+        bucket_name="podcasts",
+    )
 
-    return MinioService(client=client)
+    return MinioService(client=client, public_client=public_client)
 
 
 MinioServiceDep = Annotated[MinioService, Depends(get_minio_service)]

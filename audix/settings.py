@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = 'admin@email.com'
     ADMIN_PASSWORD: str = 'minhasenha'
     MINIO_ENDPOINT: str = 'http://minio:9000'
+    MINIO_PUBLIC_ENDPOINT: str = 'http://localhost:9000'
     MINIO_ACCESS_KEY: str = 'minioadmin'
     MINIO_SECRET_KEY: str = 'minioadmin'
  
