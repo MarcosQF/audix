@@ -39,6 +39,7 @@ class EpisodeProgressUpdate(BaseModel):
 class EpisodeProgressResponse(BaseModel):
     episode_id: int
     current_time_seconds: int
+    last_position_seconds: int
     view_counted: bool
     duration: int | None = None
 

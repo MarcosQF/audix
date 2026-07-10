@@ -26,6 +26,7 @@ def upgrade() -> None:
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('episode_id', sa.Integer(), nullable=False),
     sa.Column('current_time_seconds', sa.Integer(), nullable=False),
+    sa.Column('last_position_seconds', sa.Integer(), nullable=False, server_default='0'),
     sa.Column('view_counted', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),

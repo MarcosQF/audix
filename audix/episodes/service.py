@@ -342,18 +342,6 @@ class EpisodeService:
     async def update_progress(
         self, episode_id: int, user: User, current_time_seconds: int
     ) -> None:
-        stmt = pg_insert(EpisodeProgress).values(
-            user_id=user.id,
-            episode_id=episode_id,
-            current_time_seconds=current_time_seconds,
-            view_counted=False
-        ).on_conflict_do_update(
-            constraint="uq_user_episode_progress",
-            set_={"current_time_seconds": current_time_seconds}
-        )
-        await self.session.execute(stmt)
-
-        episode = await self.session.get(Episode, episode_id)
         progress = await self.session.scalar(
             select(EpisodeProgress).where(
                 EpisodeProgress.user_id == user.id,
@@ -361,16 +349,61 @@ class EpisodeService:
             )
         )
 
-        if (progress and not progress.view_counted and 
-            episode and episode.duration and episode.duration > 0 and 
-            current_time_seconds > (episode.duration * 0.1)):
-            
-            progress.view_counted = True
-            episode.views_count += 1
-            self.session.add(progress)
-            self.session.add(episode)
-            
+        increment = 0
+        if progress and current_time_seconds > progress.last_position_seconds:
+            diff = current_time_seconds - progress.last_position_seconds
+            increment = diff if diff <= 15 else 10
+        
+        stmt = (
+            pg_insert(EpisodeProgress)
+            .values(
+                user_id=user.id,
+                episode_id=episode_id,
+                last_position_seconds=current_time_seconds,
+                current_time_seconds=current_time_seconds
+                if not progress
+                else (progress.current_time_seconds + increment),
+                view_counted=False,
+            )
+            .on_conflict_do_update(
+                constraint="uq_user_episode_progress",
+                set_={
+                    "last_position_seconds": current_time_seconds,
+                    "current_time_seconds": (
+                        progress.current_time_seconds + increment
+                    )
+                    if progress
+                    else current_time_seconds,
+                },
+            )
+        )
+        await self.session.execute(stmt)
         await self.session.commit()
+
+        updated_progress = await self.session.scalar(
+            select(EpisodeProgress).where(
+                EpisodeProgress.user_id == user.id,
+                EpisodeProgress.episode_id == episode_id
+            )
+        )
+
+        if updated_progress and not updated_progress.view_counted:
+            episode = await self.session.get(Episode, episode_id)
+            
+            if (
+                episode 
+                and episode.duration 
+                and episode.duration > 0 
+                and current_time_seconds > (episode.duration * 0.1)
+            ):
+                updated_progress.view_counted = True
+                episode.views_count += 1
+                
+                self.session.add(updated_progress)
+                self.session.add(episode)
+                
+                await self.session.commit()
+                await self.session.refresh(episode)
 
     async def get_progress(
         self, episode_id: int, user: User
@@ -387,6 +420,7 @@ class EpisodeService:
             return EpisodeProgressResponse(
                 episode_id=episode_id,
                 current_time_seconds=0,
+                last_position_seconds=0,
                 view_counted=False
             )
 

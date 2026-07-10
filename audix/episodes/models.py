@@ -107,6 +107,8 @@ class EpisodeProgress(Base, TimestampMixin):
         ForeignKey("episodes.id", ondelete="CASCADE")
     )
     
+    last_position_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    
     current_time_seconds: Mapped[int] = mapped_column(Integer, default=0)
     
     view_counted: Mapped[bool] = mapped_column(Boolean, default=False)
