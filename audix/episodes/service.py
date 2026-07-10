@@ -177,6 +177,7 @@ class EpisodeService:
             )
 
         extensao = Path(file.filename or "").suffix
+
         object_name = (
             f"{db_episode.podcast.name}/episodes/{db_episode.title}-"
             f"{db_episode.episode_number}/images/{uuid.uuid4()}{extensao}"
@@ -282,13 +283,11 @@ class EpisodeService:
 
         if db_episode.audio_url and db_episode.audio_url.startswith("http"):
             parts = db_episode.audio_url.split("podcasts/")[-1].split("?")[0]
-            from urllib.parse import unquote
-            db_episode.audio_url = unquote(f"podcasts/{parts}")
+            db_episode.audio_url = unquote(parts)
             
         if db_episode.image_url and db_episode.image_url.startswith("http"):
             parts = db_episode.image_url.split("podcasts/")[-1].split("?")[0]
-            from urllib.parse import unquote
-            db_episode.image_url = unquote(f"podcasts/{parts}")
+            db_episode.image_url = unquote(parts)
 
         self.session.add(db_episode)
         await self.session.commit()
@@ -317,14 +316,12 @@ class EpisodeService:
             audio_path = unquote(
                 audio_path.split("podcasts/")[-1].split("?")[0]
             )
-            audio_path = f"podcasts/{audio_path}"
 
         image_path = episode.image_url
         if image_path and image_path.startswith("http"):
             image_path = unquote(
                 image_path.split("podcasts/")[-1].split("?")[0]
             )
-            image_path = f"podcasts/{image_path}"
 
         if audio_path:
             try:
@@ -375,7 +372,7 @@ class EpisodeService:
         ):
             progress.view_counted = True
             episode.views_count += 1
-            
+
             if episode.audio_url and episode.audio_url.startswith("http"):
                 episode.audio_url = unquote(
                     episode.audio_url.split("podcasts/")[-1].split("?")[0]
