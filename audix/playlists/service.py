@@ -14,7 +14,7 @@ from audix.shared.errors import ForbbiddenException, NotFoundException
 from audix.users.models import User
 
 from .models import Playlist
-from .schemas import PlaylistCreate
+from .schemas import PlaylistCreate, PlaylistUpdate
 
 
 class PlaylistService:
@@ -60,6 +60,24 @@ class PlaylistService:
             raise ForbbiddenException(detail="Esta playlist não lhe pertence")
 
         return playlist_db
+
+    async def update(
+        self,
+        playlist_id: int,
+        data: PlaylistUpdate,
+        current_user: User,
+    ) -> Playlist:
+        playlist = await self.get_by_id(playlist_id, current_user)
+
+        update_dict = data.model_dump(exclude_unset=True)
+
+        for key, value in update_dict.items():
+            setattr(playlist, key, value)
+
+        self.session.add(playlist)
+        await self.session.commit()
+
+        return playlist
 
     async def add_episode_to_playlist(
         self,

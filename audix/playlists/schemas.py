@@ -15,6 +15,10 @@ class PlaylistCreate(BaseModel):
     name: str
     description: str | None = None
 
+class PlaylistUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
 class PlaylistResponse(BaseModel):
     id: int
     name: str

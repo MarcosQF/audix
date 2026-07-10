@@ -4,7 +4,7 @@ from fastapi import APIRouter, Response
 
 from audix.shared.permissions import RequireUser
 
-from .schemas import ListPlaylists, PlaylistCreate, PlaylistResponse
+from .schemas import ListPlaylists, PlaylistCreate, PlaylistResponse, PlaylistUpdate
 from .service import PlaylistServiceDep
 
 router = APIRouter(prefix="/playlists", tags=["Playlists"])
@@ -38,6 +38,20 @@ async def get_playlist(
     current_user: RequireUser,
 ):
     return await service.get_by_id(playlist_id=playlist_id, current_user=current_user)
+
+
+@router.patch("/{playlist_id}", response_model=PlaylistResponse)
+async def update_playlist(
+    playlist_id: int,
+    data: PlaylistUpdate,
+    service: PlaylistServiceDep,
+    current_user: RequireUser,
+):
+    return await service.update(
+        playlist_id=playlist_id,
+        data=data,
+        current_user=current_user,
+    )
 
 
 @router.post(
