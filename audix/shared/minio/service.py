@@ -8,7 +8,9 @@ from .client import MinioClient
 
 
 class MinioService:
-    def __init__(self, client: MinioClient, public_client: MinioClient | None = None):
+    def __init__(
+        self, client: MinioClient, public_client: MinioClient | None = None
+    ):
         self.client = client
         self.public_client = public_client or client
 
@@ -29,7 +31,10 @@ class MinioService:
         async with self.public_client.get_client() as s3:
             url = await s3.generate_presigned_url(  # type: ignore
                 "get_object",
-                Params={"Bucket": self.public_client.bucket_name, "Key": object_name},
+                Params={
+                    "Bucket": self.public_client.bucket_name,
+                    "Key": object_name,
+                },
                 ExpiresIn=3600,
             )
             return url
@@ -49,6 +54,7 @@ def get_minio_service():
         secret_key=settings.MINIO_SECRET_KEY,
         bucket_name="podcasts",
     )
+
     public_client = MinioClient(
         endpoint=settings.MINIO_PUBLIC_ENDPOINT,
         access_key=settings.MINIO_ACCESS_KEY,

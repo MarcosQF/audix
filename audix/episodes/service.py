@@ -1,6 +1,7 @@
 import uuid
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import unquote
 
 from fastapi import Depends, UploadFile
 from mutagen import File as MutagenFile
@@ -42,7 +43,6 @@ class EpisodeService:
         podcast_id: int,
         current_user: User,
     ) -> Episode:
-
         podcast_db = await self.podcast_service.get_by_id(podcast_id=podcast_id)
 
         if (
@@ -62,7 +62,6 @@ class EpisodeService:
         await self.session.commit()
 
         new_episode.podcast = podcast_db
-
         return new_episode
 
     async def get_by_id(
@@ -89,23 +88,25 @@ class EpisodeService:
         )
         like_exists = await self.session.scalar(query_like)
         
-        episode_db.audio_url = await self.minio_service.get_file_url(
-            episode_db.audio_url
-        )
-        episode_db.image_url = await self.minio_service.get_file_url(
-            episode_db.image_url
-        )
+        if episode_db.audio_url and not episode_db.audio_url.startswith("http"):
+            episode_db.audio_url = await self.minio_service.get_file_url(
+                episode_db.audio_url
+            )
+        if episode_db.image_url and not episode_db.image_url.startswith("http"):
+            episode_db.image_url = await self.minio_service.get_file_url(
+                episode_db.image_url
+            )
+            
         episode_db.is_liked = True if like_exists else False
-
         return episode_db
 
     async def list_by_podcast(
         self,
         podcast_id: int,
+        current_user: User,
         skip: int = 0,
         limit: int = 100,
     ) -> list[Episode]:
-        
         await self.podcast_service.get_by_id(podcast_id=podcast_id)
 
         query = (
@@ -120,13 +121,31 @@ class EpisodeService:
         result = await self.session.scalars(query)
         episodes_list = list(result.all())
 
+        liked_episodes_ids = set()
+        if current_user and episodes_list:
+            episodes_ids = [ep.id for ep in episodes_list]
+            
+            query_likes = (
+                select(episode_likes_association.c.episode_id)
+                .where(
+                    episode_likes_association.c.user_id == current_user.id,
+                    episode_likes_association.c.episode_id.in_(episodes_ids)
+                )
+            )
+            likes_result = await self.session.scalars(query_likes)
+            liked_episodes_ids = set(likes_result.all())
+
         for episode in episodes_list:
-            episode.audio_url = await self.minio_service.get_file_url(
-                episode.audio_url
-            )
-            episode.image_url = await self.minio_service.get_file_url(
-                episode.image_url
-            )
+            episode.is_liked = episode.id in liked_episodes_ids
+
+            if episode.audio_url and not episode.audio_url.startswith("http"):
+                episode.audio_url = await self.minio_service.get_file_url(
+                    episode.audio_url
+                )
+            if episode.image_url and not episode.image_url.startswith("http"):
+                episode.image_url = await self.minio_service.get_file_url(
+                    episode.image_url
+                )
 
         return episodes_list
 
@@ -136,9 +155,15 @@ class EpisodeService:
         episode_id: int,
         user: User,
     ) -> Episode:
-        db_episode = await self.get_by_id(
-            episode_id=episode_id, current_user=user
+        query = (
+            select(Episode)
+            .options(joinedload(Episode.podcast))
+            .where(Episode.id == episode_id)
         )
+        db_episode = await self.session.scalar(query)
+        
+        if not db_episode:
+            raise NotFoundException(item="Episódio", item_id=episode_id)
 
         if (
             db_episode.podcast.author_id != user.id
@@ -146,13 +171,12 @@ class EpisodeService:
         ):
             raise ForbbiddenException(detail="Você não tem permissão para isso")
 
-        if db_episode.image_url:
+        if db_episode.image_url and not db_episode.image_url.startswith("http"):
             await self.minio_service.delete_file(
                 object_name=db_episode.image_url
             )
 
         extensao = Path(file.filename or "").suffix
-
         object_name = (
             f"{db_episode.podcast.name}/episodes/{db_episode.title}-"
             f"{db_episode.episode_number}/images/{uuid.uuid4()}{extensao}"
@@ -166,6 +190,14 @@ class EpisodeService:
         await self.session.commit()
         await self.session.refresh(db_episode)
 
+        db_episode.image_url = await self.minio_service.get_file_url(
+            db_episode.image_url
+        )
+        if db_episode.audio_url and not db_episode.audio_url.startswith("http"):
+            db_episode.audio_url = await self.minio_service.get_file_url(
+                db_episode.audio_url
+            )
+
         return db_episode
 
     async def upload_audio(
@@ -174,9 +206,15 @@ class EpisodeService:
         file: UploadFile,
         current_user: User,
     ) -> Episode:
-        episode = await self.get_by_id(
-            episode_id=episode_id, current_user=current_user
+        query = (
+            select(Episode)
+            .options(joinedload(Episode.podcast))
+            .where(Episode.id == episode_id)
         )
+        episode = await self.session.scalar(query)
+
+        if not episode:
+            raise NotFoundException(item="Episódio", item_id=episode_id)
 
         if (
             episode.podcast.author_id != current_user.id
@@ -197,15 +235,13 @@ class EpisodeService:
             episode.duration = 0
 
         await file.seek(0)
-
         extensao = Path(file.filename or "").suffix
-
         object_name = (
             f"{episode.podcast.name}/episodes/{episode.title}-"
             f"{episode.episode_number}/audio/{uuid.uuid4()}{extensao}"
         )
 
-        if episode.audio_url:
+        if episode.audio_url and not episode.audio_url.startswith("http"):
             try:
                 await self.minio_service.delete_file(episode.audio_url)
             except Exception as e:
@@ -218,6 +254,14 @@ class EpisodeService:
         self.session.add(episode)
         await self.session.commit()
         await self.session.refresh(episode)
+
+        episode.audio_url = await self.minio_service.get_file_url(
+            episode.audio_url
+        )
+        if episode.image_url and not episode.image_url.startswith("http"):
+            episode.image_url = await self.minio_service.get_file_url(
+                episode.image_url
+            )
 
         return episode
 
@@ -245,10 +289,8 @@ class EpisodeService:
                 )
             )
             await self.session.execute(statement_delete)
-            
             db_episode.likes_count = max(0, db_episode.likes_count - 1)
             action = "unliked"
-            
         else:
             statement_insert = (
                 insert(episode_likes_association)
@@ -258,9 +300,18 @@ class EpisodeService:
                 )
             )
             await self.session.execute(statement_insert)
-            
             db_episode.likes_count += 1
             action = "liked"
+
+        if db_episode.audio_url and db_episode.audio_url.startswith("http"):
+            parts = db_episode.audio_url.split("podcasts/")[-1].split("?")[0]
+            from urllib.parse import unquote
+            db_episode.audio_url = unquote(f"podcasts/{parts}")
+            
+        if db_episode.image_url and db_episode.image_url.startswith("http"):
+            parts = db_episode.image_url.split("podcasts/")[-1].split("?")[0]
+            from urllib.parse import unquote
+            db_episode.image_url = unquote(f"podcasts/{parts}")
 
         self.session.add(db_episode)
         await self.session.commit()
@@ -284,27 +335,37 @@ class EpisodeService:
                 detail="Você não tem permissão para deletar este episódio"
             )
 
-        if episode.audio_url:
-            try:
-                await self.minio_service.delete_file(episode.audio_url)
-            except Exception as e:
-                print(
-                    f"Erro ao deletar arquivo de áudio do MinIO durante a remoção: {e}"
-                )
+        audio_path = episode.audio_url
+        if audio_path and audio_path.startswith("http"):
+            audio_path = unquote(
+                audio_path.split("podcasts/")[-1].split("?")[0]
+            )
+            audio_path = f"podcasts/{audio_path}"
 
-        if episode.image_url:
+        image_path = episode.image_url
+        if image_path and image_path.startswith("http"):
+            image_path = unquote(
+                image_path.split("podcasts/")[-1].split("?")[0]
+            )
+            image_path = f"podcasts/{image_path}"
+
+        if audio_path:
             try:
-                await self.minio_service.delete_file(episode.image_url)
+                await self.minio_service.delete_file(audio_path)
             except Exception as e:
-                print(
-                    f"Erro ao deletar arquivo de imagem do MinIO durante a remoção: {e}"
-                )
+                print(f"Erro ao deletar arquivo de áudio do MinIO: {e}")
+
+        if image_path:
+            try:
+                await self.minio_service.delete_file(image_path)
+            except Exception as e:
+                print(f"Erro ao deletar arquivo de imagem do MinIO: {e}")
 
         await self.session.delete(episode)
         await self.session.commit()
 
     async def update_progress(
-            self, episode_id: int, user: User, current_time_seconds: int
+        self, episode_id: int, user: User, current_time_seconds: int
     ) -> None:
         episode = await self.get_by_id(episode_id=episode_id, current_user=user)
 
@@ -332,12 +393,21 @@ class EpisodeService:
         if (
             progress
             and not progress.view_counted
+            and episode.duration and episode.duration > 0
             and current_time_seconds > (episode.duration * 0.1)
         ):
             progress.view_counted = True
-            
             episode.views_count += 1
             
+            if episode.audio_url and episode.audio_url.startswith("http"):
+                episode.audio_url = unquote(
+                    episode.audio_url.split("podcasts/")[-1].split("?")[0]
+                )
+            if episode.image_url and episode.image_url.startswith("http"):
+                episode.image_url = unquote(
+                    episode.image_url.split("podcasts/")[-1].split("?")[0]
+                )
+
             self.session.add(progress)
             self.session.add(episode)
             
@@ -398,6 +468,7 @@ class EpisodeService:
             "average_time_listened_seconds": round(avg_seconds, 2),
             "completion_rate_percentage": round(completion_rate, 2)
         }
+
 
 async def get_episode_service(
     session: SessionDep,

@@ -4,7 +4,14 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from audix.shared.permissions import RequireUser
 
-from .schemas import EpisodeAnalyticsResponse, EpisodeCreate, EpisodeProgressResponse, EpisodeProgressUpdate, EpisodeResponse, ListEpisodes
+from .schemas import (
+    EpisodeAnalyticsResponse,
+    EpisodeCreate,
+    EpisodeProgressResponse,
+    EpisodeProgressUpdate,
+    EpisodeResponse,
+    ListEpisodes,
+)
 from .service import EpisodeServiceDep
 
 router = APIRouter(tags=["Episodes"])
@@ -42,6 +49,7 @@ async def list_episodes(
     limit: int = 100,
 ):
     episodes_list = await service.list_by_podcast(
+        current_user=current_user,
         podcast_id=podcast_id, 
         skip=skip, 
         limit=limit
@@ -125,7 +133,7 @@ async def delete_episode(
 ):
     await service.delete(episode_id=episode_id, current_user=current_user)
 
-@router.post("/{episode_id}/like", status_code=HTTPStatus.OK)
+@router.post("/episodes/{episode_id}/like", status_code=HTTPStatus.OK)
 async def toggle_episode_like(
     episode_id: int,
     service: EpisodeServiceDep,
@@ -138,7 +146,7 @@ async def toggle_episode_like(
 
 
 @router.post(
-    "/{episode_id}/listening-progress", 
+    "/episodes/{episode_id}/listening-progress", 
     status_code=HTTPStatus.OK,
     summary="Atualiza o progresso de áudio ouvido pelo usuário e computa a visualização"
 )
