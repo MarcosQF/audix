@@ -200,12 +200,12 @@ class EpisodeService:
 
         return db_episode
 
-    async def upload_audio(
+    async def generate_audio_upload_url(
         self,
         episode_id: int,
-        file: UploadFile,
+        filename: str,
         current_user: User,
-    ) -> Episode:
+    ) -> dict:
         query = (
             select(Episode)
             .options(joinedload(Episode.podcast))
@@ -224,46 +224,23 @@ class EpisodeService:
                 detail="Sem permissão para alterar este episódio"
             )
 
-        try:
-            audio_info = MutagenFile(file.file)
-            if audio_info is not None and audio_info.info is not None:
-                episode.duration = int(round(audio_info.info.length))
-            else:
-                episode.duration = 0
-        except Exception as e:
-            print(f"Erro ao extrair metadados de duração: {e}")
-            episode.duration = 0
-
-        await file.seek(0)
-        extensao = Path(file.filename or "").suffix
+        extensao = Path(filename).suffix
+        
         object_name = (
             f"{episode.podcast.name}/episodes/{episode.title}-"
             f"{episode.episode_number}/audio/{uuid.uuid4()}{extensao}"
         )
 
-        if episode.audio_url and not episode.audio_url.startswith("http"):
-            try:
-                await self.minio_service.delete_file(episode.audio_url)
-            except Exception as e:
-                print(f"Erro ao deletar áudio antigo: {e}")
-
-        await self.minio_service.upload_file(file=file, object_name=object_name)
+        upload_url = await self.minio_service.get_upload_file_url(object_name)
 
         episode.audio_url = object_name
-
         self.session.add(episode)
         await self.session.commit()
-        await self.session.refresh(episode)
 
-        episode.audio_url = await self.minio_service.get_file_url(
-            episode.audio_url
-        )
-        if episode.image_url and not episode.image_url.startswith("http"):
-            episode.image_url = await self.minio_service.get_file_url(
-                episode.image_url
-            )
-
-        return episode
+        return {
+            "upload_url": upload_url,
+            "object_name": object_name
+        }
 
     async def toggle_like(self, current_user: User, episode_id: int):
         db_episode = await self.get_by_id(

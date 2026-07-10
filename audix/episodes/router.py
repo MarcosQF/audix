@@ -5,6 +5,8 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from audix.shared.permissions import RequireUser
 
 from .schemas import (
+    AudioUloadUrlResponse,
+    AudioUploadUrlRequest,
     EpisodeAnalyticsResponse,
     EpisodeCreate,
     EpisodeProgressResponse,
@@ -74,26 +76,20 @@ async def get_episode(
 
 
 @router.post(
-    "/episodes/{episode_id}/audio",
-    response_model=EpisodeResponse,
+    "/episodes/{episode_id}/audio/presigned-url",
     status_code=HTTPStatus.OK,
-    summary="Faz o upload do arquivo de áudio para o episódio",
+    response_model=AudioUloadUrlResponse,
+    summary="Gera uma URL preassinada multipart upload",
 )
-async def upload_episode_audio(
+async def get_audio_upload_url(
     episode_id: int,
+    payload: AudioUploadUrlRequest,
     service: EpisodeServiceDep,
     current_user: RequireUser,
-    file: UploadFile = File(...),
 ):
-    if not (file.content_type or "").startswith("audio/"):
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail="O arquivo enviado deve ser um áudio válido."
-        )
-
-    return await service.upload_audio(
-        episode_id=episode_id, 
-        file=file, 
+    return await service.generate_audio_upload_url(
+        episode_id=episode_id,
+        filename=payload.filename,
         current_user=current_user
     )
 
@@ -109,11 +105,6 @@ async def upload_episode_image(
     current_user: RequireUser,
     file: UploadFile = File(...),
 ):
-    # if not (file.content_type or "").startswith("audio/"):
-    #     raise HTTPException(
-    #         status_code=HTTPStatus.BAD_REQUEST,
-    #         detail="O arquivo enviado deve ser um áudio válido."
-    #     )
 
     return await service.upload_episode_image(
         file=file, 

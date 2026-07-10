@@ -48,3 +48,14 @@ class EpisodeAnalyticsResponse(BaseModel):
     total_likes: int
     average_time_listened_seconds: float
     completion_rate_percentage: float
+
+
+class AudioUploadUrlRequest(BaseModel):
+    filename: str = Field(
+        ...,
+        description="Nome original do arquivo de áudio (ex: podcast_ep1.mp3)",
+    )
+
+class AudioUloadUrlResponse(BaseModel):
+    upload_url: str
+    object_name: str

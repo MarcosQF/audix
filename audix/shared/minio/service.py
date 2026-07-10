@@ -1,5 +1,7 @@
+from datetime import timedelta
 from typing import Annotated
 
+import anyio
 from fastapi import Depends, UploadFile
 
 from audix.settings import settings
@@ -13,6 +15,21 @@ class MinioService:
     ):
         self.client = client
         self.public_client = public_client or client
+
+    async def get_upload_file_url(
+        self, object_name: str, expires_minutes: int = 15
+    ) -> str:
+        async with self.public_client.get_client() as s3:
+            url = await s3.generate_presigned_url(  # type: ignore
+                ClientMethod="put_object",
+                Params={
+                    "Bucket": self.client.bucket_name,
+                    "Key": object_name,
+                    "ContentType": "audio/mpeg",
+                },
+                ExpiresIn=expires_minutes * 60,
+            )
+            return url
 
     async def upload_file(self, file: UploadFile, object_name: str):
         async with self.client.get_client() as s3:
