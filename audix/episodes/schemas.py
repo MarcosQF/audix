@@ -11,7 +11,7 @@ class EpisodeResponse(BaseModel):
     episode_number: int
     audio_url: str | None = None
     image_url: str | None = None
-    duration: int | None = None
+    duration: int
     views_count: int
     likes_count: int
     is_liked: bool | None = None
@@ -20,6 +20,7 @@ class EpisodeResponse(BaseModel):
 class EpisodeCreate(BaseModel):
     title: StrippedString
     description: str
+    duration: int
     episode_number: int
 
 class ListEpisodes(BaseModel):
@@ -39,6 +40,7 @@ class EpisodeProgressResponse(BaseModel):
     episode_id: int
     current_time_seconds: int
     view_counted: bool
+    duration: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -56,11 +56,14 @@ class Episode(Base, TimestampMixin):
             ForeignKey("podcasts.id", ondelete="CASCADE")
     )
 
+    duration: Mapped[int] = mapped_column(
+        Integer, nullable=False
+    )
+
     image_url: Mapped[str | None] = mapped_column(
         String(1000), nullable=True, default=None
     )
 
-    duration: Mapped[int] = mapped_column(Integer, nullable=True, init=False)
 
 
     podcast: Mapped["Podcast"] = relationship(

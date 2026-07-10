@@ -56,6 +56,7 @@ class EpisodeService:
             description=data.description,
             episode_number=data.episode_number,
             podcast_id=podcast_id,
+            duration=data.duration,
         )
 
         self.session.add(new_episode)

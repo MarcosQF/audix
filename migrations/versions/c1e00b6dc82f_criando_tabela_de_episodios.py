@@ -28,7 +28,7 @@ def upgrade() -> None:
     sa.Column('episode_number', sa.Integer(), nullable=False),
     sa.Column('audio_url', sa.String(length=1000), nullable=True),
     sa.Column('image_url', sa.String(length=1000), nullable=True),
-    sa.Column('duration', sa.Integer(), nullable=True),
+    sa.Column('duration', sa.Integer(), nullable=False),
     sa.Column('podcast_id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
