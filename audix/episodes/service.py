@@ -342,47 +342,31 @@ class EpisodeService:
     async def update_progress(
         self, episode_id: int, user: User, current_time_seconds: int
     ) -> None:
-        episode = await self.get_by_id(episode_id=episode_id, current_user=user)
-
         stmt = pg_insert(EpisodeProgress).values(
             user_id=user.id,
             episode_id=episode_id,
             current_time_seconds=current_time_seconds,
             view_counted=False
-        )
-        
-        stmt = stmt.on_conflict_do_update(
+        ).on_conflict_do_update(
             constraint="uq_user_episode_progress",
             set_={"current_time_seconds": current_time_seconds}
         )
-
         await self.session.execute(stmt)
 
-        query_check = select(EpisodeProgress).where(
-            EpisodeProgress.user_id == user.id,
-            EpisodeProgress.episode_id == episode_id
+        episode = await self.session.get(Episode, episode_id)
+        progress = await self.session.scalar(
+            select(EpisodeProgress).where(
+                EpisodeProgress.user_id == user.id,
+                EpisodeProgress.episode_id == episode_id
+            )
         )
 
-        progress = await self.session.scalar(query_check)
-
-        if (
-            progress
-            and not progress.view_counted
-            and episode.duration and episode.duration > 0
-            and current_time_seconds > (episode.duration * 0.1)
-        ):
+        if (progress and not progress.view_counted and 
+            episode and episode.duration and episode.duration > 0 and 
+            current_time_seconds > (episode.duration * 0.1)):
+            
             progress.view_counted = True
             episode.views_count += 1
-
-            if episode.audio_url and episode.audio_url.startswith("http"):
-                episode.audio_url = unquote(
-                    episode.audio_url.split("podcasts/")[-1].split("?")[0]
-                )
-            if episode.image_url and episode.image_url.startswith("http"):
-                episode.image_url = unquote(
-                    episode.image_url.split("podcasts/")[-1].split("?")[0]
-                )
-
             self.session.add(progress)
             self.session.add(episode)
             

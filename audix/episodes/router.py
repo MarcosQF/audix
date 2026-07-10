@@ -137,7 +137,7 @@ async def toggle_episode_like(
 
 
 @router.post(
-    "/episodes/{episode_id}/listening-progress", 
+    "/episodes/{episode_id}/progress", 
     status_code=HTTPStatus.OK,
     summary="Atualiza o progresso de áudio ouvido pelo usuário e computa a visualização"
 )
@@ -156,7 +156,7 @@ async def update_listening_progress(
     return {"status": "progress_updated"}
 
 @router.get(
-    "/{episode_id}/listening-progress",
+    "/episodes/{episode_id}/progress",
     response_model=EpisodeProgressResponse,
     summary="Busca o progresso atual de reprodução do usuário para um episódio específico",
 )
