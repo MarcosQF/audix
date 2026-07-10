@@ -68,7 +68,10 @@ class PlaylistService:
         current_user: User,
     ) -> Playlist:
         playlist = await self.get_by_id(playlist_id, current_user)
-        episode = await self.episode_service.get_by_id(episode_id)
+        episode = await self.episode_service.get_by_id(
+            episode_id=episode_id,
+            current_user=current_user,
+        )
 
         if episode not in playlist.episodes:
             playlist.episodes.append(episode)
@@ -96,7 +99,10 @@ class PlaylistService:
     ) -> Playlist:
         playlist = await self.get_by_id(playlist_id, current_user)
         
-        episode = await self.episode_service.get_by_id(episode_id)
+        episode = await self.episode_service.get_by_id(
+            episode_id=episode_id,
+            current_user=current_user,
+        )
 
         if episode in playlist.episodes:
             playlist.episodes.remove(episode)
