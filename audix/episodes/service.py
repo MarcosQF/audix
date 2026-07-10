@@ -26,6 +26,12 @@ from .models import Episode, EpisodeProgress, episode_likes_association
 from .schemas import EpisodeCreate, EpisodeProgressResponse
 
 
+def _to_object_key(value: str) -> str:
+    if not value.startswith("http"):
+        return value
+    return unquote(value.split("podcasts/")[-1].split("?")[0])
+
+
 class EpisodeService:
     def __init__(
         self,
@@ -89,15 +95,15 @@ class EpisodeService:
         )
         like_exists = await self.session.scalar(query_like)
         
-        if episode_db.audio_url and not episode_db.audio_url.startswith("http"):
+        if episode_db.audio_url:
             episode_db.audio_url = await self.minio_service.get_file_url(
-                episode_db.audio_url
+                _to_object_key(episode_db.audio_url)
             )
-        if episode_db.image_url and not episode_db.image_url.startswith("http"):
+        if episode_db.image_url:
             episode_db.image_url = await self.minio_service.get_file_url(
-                episode_db.image_url
+                _to_object_key(episode_db.image_url)
             )
-            
+
         episode_db.is_liked = True if like_exists else False
         return episode_db
 
@@ -139,13 +145,13 @@ class EpisodeService:
         for episode in episodes_list:
             episode.is_liked = episode.id in liked_episodes_ids
 
-            if episode.audio_url and not episode.audio_url.startswith("http"):
+            if episode.audio_url:
                 episode.audio_url = await self.minio_service.get_file_url(
-                    episode.audio_url
+                    _to_object_key(episode.audio_url)
                 )
-            if episode.image_url and not episode.image_url.startswith("http"):
+            if episode.image_url:
                 episode.image_url = await self.minio_service.get_file_url(
-                    episode.image_url
+                    _to_object_key(episode.image_url)
                 )
 
         return episodes_list
@@ -172,9 +178,9 @@ class EpisodeService:
         ):
             raise ForbbiddenException(detail="Você não tem permissão para isso")
 
-        if db_episode.image_url and not db_episode.image_url.startswith("http"):
+        if db_episode.image_url:
             await self.minio_service.delete_file(
-                object_name=db_episode.image_url
+                object_name=_to_object_key(db_episode.image_url)
             )
 
         extensao = Path(file.filename or "").suffix
@@ -195,9 +201,9 @@ class EpisodeService:
         db_episode.image_url = await self.minio_service.get_file_url(
             db_episode.image_url
         )
-        if db_episode.audio_url and not db_episode.audio_url.startswith("http"):
+        if db_episode.audio_url:
             db_episode.audio_url = await self.minio_service.get_file_url(
-                db_episode.audio_url
+                _to_object_key(db_episode.audio_url)
             )
 
         return db_episode
@@ -282,13 +288,11 @@ class EpisodeService:
             db_episode.likes_count += 1
             action = "liked"
 
-        if db_episode.audio_url and db_episode.audio_url.startswith("http"):
-            parts = db_episode.audio_url.split("podcasts/")[-1].split("?")[0]
-            db_episode.audio_url = unquote(parts)
-            
-        if db_episode.image_url and db_episode.image_url.startswith("http"):
-            parts = db_episode.image_url.split("podcasts/")[-1].split("?")[0]
-            db_episode.image_url = unquote(parts)
+        if db_episode.audio_url:
+            db_episode.audio_url = _to_object_key(db_episode.audio_url)
+
+        if db_episode.image_url:
+            db_episode.image_url = _to_object_key(db_episode.image_url)
 
         self.session.add(db_episode)
         await self.session.commit()
@@ -312,17 +316,8 @@ class EpisodeService:
                 detail="Você não tem permissão para deletar este episódio"
             )
 
-        audio_path = episode.audio_url
-        if audio_path and audio_path.startswith("http"):
-            audio_path = unquote(
-                audio_path.split("podcasts/")[-1].split("?")[0]
-            )
-
-        image_path = episode.image_url
-        if image_path and image_path.startswith("http"):
-            image_path = unquote(
-                image_path.split("podcasts/")[-1].split("?")[0]
-            )
+        audio_path = _to_object_key(episode.audio_url) if episode.audio_url else None
+        image_path = _to_object_key(episode.image_url) if episode.image_url else None
 
         if audio_path:
             try:
