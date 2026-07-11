@@ -86,6 +86,10 @@ class PodcastService:
     async def delete_podcast_image(self, image_url: str):
         return await self.minio_service.delete_file(object_name=image_url)
 
+    async def with_public_image_url(self, podcast: Podcast) -> Podcast:
+        podcast.image_url = await self.minio_service.get_file_url(podcast.image_url or None)
+        return podcast
+
     async def get_by_id(self, podcast_id: int) -> Podcast:
         query = (
             select(Podcast)

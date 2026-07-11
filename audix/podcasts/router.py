@@ -2,13 +2,13 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from audix.shared.minio.service import MinioServiceDep
 from audix.shared.permissions import RequireUser
 
 from .schemas import ListPodcast, PodcastCreate, PodcastResponse, PodcastUpdate
 from .service import PodcastServiceDep
 
 router = APIRouter(prefix="/podcasts", tags=["Podcasts"])
+
 
 @router.post(
     "/",
@@ -36,12 +36,9 @@ async def get_podcast(
     current_user: RequireUser,
     podcast_id: int,
     service: PodcastServiceDep,
-    storage: MinioServiceDep,
 ):
     podcast = await service.get_by_id(podcast_id)
-    podcast.image_url = await storage.get_file_url(podcast.image_url or None)
-
-    return podcast
+    return await service.with_public_image_url(podcast)
 
 
 @router.get(
@@ -52,16 +49,13 @@ async def get_podcast(
 async def list_podcasts(
     current_user: RequireUser,
     service: PodcastServiceDep,
-    storage: MinioServiceDep,
     skip: int = 0,
     limit: int = 100,
 ):
     podcasts = await service.list_all(skip=skip, limit=limit)
 
     for podcast in podcasts:
-        podcast.image_url = await storage.get_file_url(
-            podcast.image_url or None
-        )
+        await service.with_public_image_url(podcast)
 
     return {"podcasts": podcasts, "quantity": len(podcasts)}
 
@@ -77,11 +71,12 @@ async def update_podcast(
     service: PodcastServiceDep,
     current_user: RequireUser,
 ):
-    return await service.update(
+    podcast = await service.update(
         podcast_id=podcast_id,
         podcast_data=podcast_data,
         current_user=current_user,
     )
+    return await service.with_public_image_url(podcast)
 
 
 @router.delete(
@@ -115,8 +110,9 @@ async def upload_podcast_image(
             detail="O arquivo enviado deve ser uma imagem.",
         )
 
-    return await service.upload_podcast_image(
+    podcast = await service.upload_podcast_image(
         file=file,
         podcast_id=podcast_id,
         user=current_user
     )
+    return await service.with_public_image_url(podcast)
